@@ -1,0 +1,1200 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Clasificador Documental</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #eef2f6;
+        --bg-2: #dce5ef;
+        --panel: rgba(255, 255, 255, 0.82);
+        --panel-strong: #ffffff;
+        --text: #122033;
+        --muted: #5d6a7d;
+        --primary: #163d6b;
+        --primary-2: #1f6f8b;
+        --accent: #d18f2b;
+        --border: rgba(18, 32, 51, 0.12);
+        --shadow: 0 24px 70px rgba(17, 35, 57, 0.16);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--text);
+        font-family: "Aptos", "Segoe UI Variable", "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at 10% 10%, rgba(31, 111, 139, 0.15), transparent 28%),
+          radial-gradient(circle at 90% 0%, rgba(209, 143, 43, 0.16), transparent 24%),
+          linear-gradient(180deg, #f7f9fb 0%, var(--bg) 100%);
+      }
+
+      .shell {
+        width: min(1240px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0 44px;
+      }
+
+      .hero {
+        display: grid;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .eyebrow {
+        width: fit-content;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.75);
+        color: var(--primary);
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        font-size: 0.78rem;
+      }
+
+      h1 {
+        margin: 0;
+        max-width: 14ch;
+        font-size: clamp(2.6rem, 6vw, 5.2rem);
+        line-height: 0.92;
+        letter-spacing: -0.06em;
+      }
+
+      .lead {
+        margin: 0;
+        max-width: 72ch;
+        color: var(--muted);
+        font-size: 1.04rem;
+        line-height: 1.65;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(340px, 0.95fr) minmax(0, 1.2fr);
+        gap: 18px;
+        align-items: start;
+      }
+
+      .panel,
+      .results,
+      .groups,
+      .group,
+      .group__top,
+      .group__meta,
+      .group__footer {
+        min-width: 0;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        backdrop-filter: blur(14px);
+      }
+
+      .panel__body {
+        padding: 24px;
+      }
+
+      .stack {
+        display: grid;
+        gap: 14px;
+      }
+
+      .block-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .block-title h2 {
+        margin: 0;
+        font-size: 1.15rem;
+        letter-spacing: -0.03em;
+      }
+
+      .helper {
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.5;
+      }
+
+      .file-input {
+        width: 100%;
+        padding: 13px;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.9);
+      }
+
+      .queue {
+        display: grid;
+        gap: 10px;
+      }
+
+      .queue__empty {
+        padding: 18px;
+        border-radius: 18px;
+        border: 1px dashed rgba(18, 32, 51, 0.2);
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.5);
+      }
+
+      .queue__list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .queue-item {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 14px 16px;
+        border-radius: 18px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .queue-item__main {
+        min-width: 0;
+        flex: 1;
+        display: grid;
+        gap: 6px;
+      }
+
+      .queue-item__name {
+        font-weight: 650;
+        line-height: 1.3;
+        word-break: break-word;
+      }
+
+      .queue-item__meta {
+        color: var(--muted);
+        font-size: 0.86rem;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .queue-item__tag {
+        flex: none;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(22, 61, 107, 0.08);
+        color: var(--primary);
+        font-size: 0.8rem;
+        font-weight: 700;
+      }
+
+      .queue-item__actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        align-items: center;
+      }
+
+      .queue-item__action {
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+      }
+
+      .queue-item__action--preview {
+        background: rgba(31, 111, 139, 0.12);
+        color: var(--primary-2);
+      }
+
+      .queue-item__action--remove {
+        background: rgba(180, 43, 43, 0.12);
+        color: #9b1c1c;
+      }
+
+      .preview-modal {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        background: rgba(10, 18, 31, 0.62);
+        z-index: 30;
+      }
+
+      .preview-modal.is-open {
+        display: flex;
+      }
+
+      .preview-modal__dialog {
+        width: min(920px, 100%);
+        max-height: min(90vh, 900px);
+        display: grid;
+        grid-template-rows: auto 1fr;
+        overflow: hidden;
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.96);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+      }
+
+      .preview-modal__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 18px;
+        border-bottom: 1px solid rgba(18, 32, 51, 0.08);
+      }
+
+      .preview-modal__title {
+        min-width: 0;
+      }
+
+      .preview-modal__name {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 800;
+        word-break: break-word;
+      }
+
+      .preview-modal__meta {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+
+      .preview-modal__close {
+        flex: none;
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        border-radius: 999px;
+        background: rgba(18, 32, 51, 0.08);
+        color: var(--text);
+      }
+
+      .preview-modal__body {
+        padding: 18px;
+        overflow: auto;
+        background: linear-gradient(180deg, rgba(238, 242, 246, 0.8), rgba(255, 255, 255, 0.96));
+      }
+
+      .preview-modal__frame,
+      .preview-modal__object,
+      .preview-modal__image {
+        width: 100%;
+        min-height: 60vh;
+        border: 0;
+        border-radius: 18px;
+        background: white;
+      }
+
+      .preview-modal__object {
+        display: block;
+      }
+
+      .preview-modal__image {
+        object-fit: contain;
+      }
+
+      .preview-modal__fallback {
+        display: grid;
+        place-items: center;
+        min-height: 60vh;
+        padding: 28px;
+        border-radius: 18px;
+        border: 1px dashed rgba(18, 32, 51, 0.18);
+        background: rgba(255, 255, 255, 0.75);
+        color: var(--muted);
+        text-align: center;
+        line-height: 1.6;
+      }
+
+      .actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        border: 0;
+        border-radius: 14px;
+        padding: 13px 18px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.7;
+        transform: none;
+      }
+
+      .primary {
+        color: white;
+        background: linear-gradient(135deg, var(--primary), var(--primary-2));
+        box-shadow: 0 14px 28px rgba(22, 61, 107, 0.24);
+      }
+
+      .secondary {
+        color: var(--primary);
+        background: rgba(22, 61, 107, 0.08);
+      }
+
+      .status {
+        min-height: 24px;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .results {
+        display: grid;
+        gap: 16px;
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .metric {
+        padding: 18px;
+        border-radius: 20px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.7);
+      }
+
+      .metric__label {
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.74rem;
+        margin-bottom: 10px;
+      }
+
+      .metric__value {
+        font-size: 1.45rem;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+      }
+
+      .metric__note {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 0.88rem;
+        line-height: 1.45;
+      }
+
+      .groups {
+        display: grid;
+        gap: 12px;
+      }
+
+      .group {
+        border-radius: 22px;
+        border: 1px solid var(--border);
+        background: var(--panel-strong);
+        padding: 18px;
+      }
+
+      .group__top {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        align-items: start;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
+      }
+
+      .group__eyebrow {
+        margin: 0 0 8px;
+        color: var(--primary-2);
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .group__title {
+        margin: 0;
+        font-size: 1.18rem;
+        letter-spacing: -0.03em;
+      }
+
+      .group__count {
+        flex: none;
+        padding: 7px 11px;
+        border-radius: 999px;
+        background: rgba(209, 143, 43, 0.12);
+        color: #8a5b0f;
+        font-size: 0.8rem;
+        font-weight: 800;
+      }
+
+      .group__meta {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .group__list {
+        display: grid;
+        gap: 8px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .group__item {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(18, 32, 51, 0.04);
+        min-width: 0;
+        flex-wrap: wrap;
+      }
+
+      .group__item-name {
+        min-width: 0;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        white-space: normal;
+        flex: 1;
+      }
+
+      .group__item-confidence {
+        flex: none;
+        font-weight: 800;
+      }
+
+      .group__item-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        width: 100%;
+      }
+
+      .group__item-action {
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+      }
+
+      .group__item-action--preview {
+        background: rgba(31, 111, 139, 0.12);
+        color: var(--primary-2);
+      }
+
+      .group__item-action--download {
+        background: rgba(209, 143, 43, 0.16);
+        color: #8a5b0f;
+      }
+
+      .group__footer {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 14px;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .group__download {
+        background: linear-gradient(135deg, var(--accent), #f0b35c);
+        color: #2b1c00;
+        width: min(100%, 280px);
+      }
+
+      .group__download--all {
+        background: rgba(22, 61, 107, 0.08);
+        color: var(--primary);
+        width: min(100%, 320px);
+      }
+
+      .empty-results {
+        padding: 18px;
+        border-radius: 18px;
+        border: 1px dashed rgba(18, 32, 51, 0.18);
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.52);
+      }
+
+      @media (max-width: 980px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .metrics {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .shell {
+          width: min(100% - 20px, 1240px);
+          padding-top: 18px;
+        }
+
+        .panel__body {
+          padding: 18px;
+        }
+
+        .group__top,
+        .queue-item {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .queue-item__actions {
+          justify-content: flex-start;
+        }
+
+        .group__footer {
+          justify-content: stretch;
+        }
+
+        .group__download {
+          width: 100%;
+        }
+
+        .group__count {
+          white-space: normal;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div class="eyebrow">Clasificación documental</div>
+        <h1>Organiza expedientes con una sola carga.</h1>
+        <p class="lead">
+          Sube hasta 20 documentos, captura el tipo detectado por el modelo ResNet50 y descarga cada categoría por separado.
+          La interfaz está pensada para un flujo operativo más limpio y empresarial.
+        </p>
+      </section>
+
+      <section class="grid">
+        <article class="panel">
+          <div class="panel__body stack">
+            <div class="block-title">
+              <h2>Entrada de documentos</h2>
+            </div>
+            <p class="helper">Selecciona PDFs o imágenes legibles. Cada PDF se clasifica a partir de su primera página y luego se descarga de forma individual por documento.</p>
+            <input id="documentInput" class="file-input" type="file" accept=".pdf,image/*" multiple />
+
+            <div class="queue">
+              <div class="queue__empty" id="queueEmpty">Todavía no has agregado documentos.</div>
+              <div class="queue__list" id="queueList" hidden></div>
+            </div>
+
+            <div class="actions">
+              <button class="primary" id="classifyBtn" type="button">Clasificar documentos</button>
+              <button class="secondary" id="clearBtn" type="button">Limpiar selección</button>
+            </div>
+
+            <div class="status" id="status">Listo para procesar hasta 20 documentos.</div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel__body results">
+            <div class="metrics">
+              <div class="metric">
+                <div class="metric__label">Documentos procesados</div>
+                <div class="metric__value" id="metricTotal">0</div>
+                <div class="metric__note">Se calcula al terminar la inferencia del lote.</div>
+              </div>
+              <div class="metric">
+                <div class="metric__label">Tipo predominante</div>
+                <div class="metric__value" id="metricTop">-</div>
+                <div class="metric__note" id="metricTopNote">Esperando resultados.</div>
+              </div>
+              <div class="metric">
+                <div class="metric__label">Confianza media</div>
+                <div class="metric__value" id="metricConfidence">0%</div>
+                <div class="metric__note">Promedio entre los documentos cargados.</div>
+              </div>
+            </div>
+
+            <div class="groups" id="groupList">
+              <div class="empty-results" id="resultsEmpty">Aquí aparecerán los tipos detectados y su botón de descarga por categoría.</div>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      const MAX_UPLOADS = 20;
+      const documentInput = document.getElementById("documentInput");
+      const queueEmpty = document.getElementById("queueEmpty");
+      const queueList = document.getElementById("queueList");
+      const previewModal = document.createElement("div");
+      previewModal.className = "preview-modal";
+      previewModal.innerHTML = `
+        <div class="preview-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+          <div class="preview-modal__header">
+            <div class="preview-modal__title">
+              <p class="preview-modal__name" id="previewTitle">Vista previa</p>
+              <div class="preview-modal__meta" id="previewMeta"></div>
+            </div>
+            <button class="preview-modal__close" type="button" aria-label="Cerrar vista previa">×</button>
+          </div>
+          <div class="preview-modal__body" id="previewBody"></div>
+        </div>
+      `;
+      document.body.appendChild(previewModal);
+      const previewModalClose = previewModal.querySelector(".preview-modal__close");
+      const previewTitle = previewModal.querySelector("#previewTitle");
+      const previewMeta = previewModal.querySelector("#previewMeta");
+      const previewBody = previewModal.querySelector("#previewBody");
+      const classifyBtn = document.getElementById("classifyBtn");
+      const clearBtn = document.getElementById("clearBtn");
+      const status = document.getElementById("status");
+      const metricTotal = document.getElementById("metricTotal");
+      const metricTop = document.getElementById("metricTop");
+      const metricTopNote = document.getElementById("metricTopNote");
+      const metricConfidence = document.getElementById("metricConfidence");
+      const groupList = document.getElementById("groupList");
+
+      let selectedFiles = [];
+      let groupedResults = [];
+
+      function fileKey(file) {
+        return `${file.name}|${file.size}|${file.lastModified}`;
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, (character) => {
+          switch (character) {
+            case "&":
+              return "&amp;";
+            case "<":
+              return "&lt;";
+            case ">":
+              return "&gt;";
+            case '"':
+              return "&quot;";
+            case "'":
+              return "&#39;";
+            default:
+              return character;
+          }
+        });
+      }
+
+      function slugify(value) {
+        return String(value)
+          .normalize("NFKD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-zA-Z0-9]+/g, "_")
+          .replace(/^_+|_+$/g, "")
+          .toLowerCase() || "documento";
+      }
+
+      function formatSize(bytes) {
+        if (!bytes) {
+          return "0 KB";
+        }
+
+        const units = ["B", "KB", "MB", "GB"];
+        let size = bytes;
+        let unitIndex = 0;
+
+        while (size >= 1024 && unitIndex < units.length - 1) {
+          size /= 1024;
+          unitIndex += 1;
+        }
+
+        return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+      }
+
+      function fileTag(file) {
+        const extension = file.name.includes(".") ? file.name.split(".").pop() : "DOC";
+        return extension.toUpperCase();
+      }
+
+      function fileKind(file) {
+        if ((file.type || "").toLowerCase() === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+          return "PDF";
+        }
+
+        return "Imagen";
+      }
+
+      function closePreviewModal() {
+        if (previewModal.dataset.previewUrl) {
+          URL.revokeObjectURL(previewModal.dataset.previewUrl);
+          delete previewModal.dataset.previewUrl;
+        }
+        previewModal.classList.remove("is-open");
+        previewBody.innerHTML = "";
+      }
+
+      function createPreviewElement(file, blob, contentType) {
+        const objectUrl = URL.createObjectURL(blob);
+        if ((contentType || "").toLowerCase().includes("pdf")) {
+          const object = document.createElement("object");
+          object.className = "preview-modal__object";
+          object.data = objectUrl;
+          object.type = "application/pdf";
+          object.title = `Vista previa de ${file.name}`;
+
+          const fallback = document.createElement("div");
+          fallback.className = "preview-modal__fallback";
+          fallback.textContent = "No se pudo mostrar el PDF incrustado en este navegador.";
+          object.appendChild(fallback);
+
+          return { element: object, objectUrl };
+        }
+
+        const image = document.createElement("img");
+        image.className = "preview-modal__image";
+        image.alt = file.name;
+        image.src = objectUrl;
+        return { element: image, objectUrl };
+      }
+
+      async function openPreviewModal(file) {
+        if (previewModal.dataset.previewUrl) {
+          URL.revokeObjectURL(previewModal.dataset.previewUrl);
+          delete previewModal.dataset.previewUrl;
+        }
+
+        previewTitle.textContent = file.name;
+        previewMeta.textContent = `${fileKind(file)} · ${formatSize(file.size)} · ${file.type || "tipo no detectado"}`;
+        previewBody.innerHTML = '<div class="preview-modal__fallback">Cargando vista previa...</div>';
+        previewModal.classList.add("is-open");
+
+        try {
+          const formData = new FormData();
+          formData.append("documents", file);
+
+          const response = await fetch("/preview", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || "No se pudo generar la vista previa.");
+          }
+
+          const blob = await response.blob();
+          const contentType = response.headers.get("content-type") || file.type || "";
+
+          previewBody.innerHTML = "";
+          const previewContent = createPreviewElement(file, blob, contentType);
+          previewModal.dataset.previewUrl = previewContent.objectUrl;
+          previewBody.appendChild(previewContent.element);
+        } catch (error) {
+          previewBody.innerHTML = `<div class="preview-modal__fallback">${escapeHtml(error.message)}</div>`;
+        }
+      }
+
+      function removeSelectedFile(index) {
+        selectedFiles.splice(index, 1);
+        renderQueue(selectedFiles);
+
+        if (!selectedFiles.length) {
+          status.textContent = "Selección limpiada.";
+        } else {
+          status.textContent = `${selectedFiles.length} documento(s) en la cola.`;
+        }
+
+        resetResults();
+      }
+
+      function resetResults() {
+        metricTotal.textContent = "0";
+        metricTop.textContent = "-";
+        metricTopNote.textContent = "Esperando resultados.";
+        metricConfidence.textContent = "0%";
+        groupedResults = [];
+        groupList.innerHTML = '<div class="empty-results" id="resultsEmpty">Aquí aparecerán los tipos detectados y su botón de descarga por categoría.</div>';
+      }
+
+      function renderQueue(files) {
+        if (!selectedFiles.length) {
+          queueEmpty.hidden = false;
+          queueList.hidden = true;
+          queueList.innerHTML = "";
+          return;
+        }
+
+        queueEmpty.hidden = true;
+        queueList.hidden = false;
+        queueList.innerHTML = selectedFiles
+          .map((file, index) => `
+              <div class="queue-item">
+                <div class="queue-item__main">
+                  <div class="queue-item__name">${escapeHtml(file.name)}</div>
+                  <div class="queue-item__meta">
+                    <span>${escapeHtml(fileKind(file))}</span>
+                    <span>${escapeHtml(formatSize(file.size))}</span>
+                    <span>${escapeHtml(file.type || "tipo no detectado")}</span>
+                  </div>
+                </div>
+                <div class="queue-item__actions">
+                  <button class="queue-item__action queue-item__action--preview" type="button" data-preview-index="${index}">Vista rápida</button>
+                  <button class="queue-item__action queue-item__action--remove" type="button" data-remove-index="${index}">Eliminar</button>
+                  <div class="queue-item__tag">${escapeHtml(fileTag(file))}</div>
+                </div>
+              </div>`
+          )
+          .join("");
+      }
+
+      function buildFormData(files, extraFields = {}) {
+        const formData = new FormData();
+
+        files.forEach((file) => {
+          formData.append("documents", file);
+        });
+
+        Object.entries(extraFields).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== "") {
+            formData.append(key, value);
+          }
+        });
+
+        return formData;
+      }
+
+      function groupByLabel(items) {
+        const groupMap = new Map();
+
+        items.forEach((item) => {
+          const label = item.predicted_label;
+          if (!groupMap.has(label)) {
+            groupMap.set(label, { label, items: [] });
+          }
+
+          groupMap.get(label).items.push(item);
+        });
+
+        return Array.from(groupMap.values()).sort((left, right) => left.label.localeCompare(right.label, "es"));
+      }
+
+      function renderGroupedResults(results) {
+        metricTotal.textContent = String(results.length);
+
+        const confidences = results.map((item) => item.confidence);
+        const averageConfidence = confidences.length
+          ? confidences.reduce((sum, value) => sum + value, 0) / confidences.length
+          : 0;
+        metricConfidence.textContent = `${averageConfidence.toFixed(2)}%`;
+
+        groupedResults = groupByLabel(results.map((item, index) => ({ ...item, file: selectedFiles[index] })));
+
+        if (!groupedResults.length) {
+          metricTop.textContent = "-";
+          metricTopNote.textContent = "No se obtuvieron resultados.";
+          groupList.innerHTML = '<div class="empty-results" id="resultsEmpty">No se encontraron clasificaciones para mostrar.</div>';
+          return;
+        }
+
+        const dominantGroup = groupedResults.reduce((best, current) => {
+          if (!best || current.items.length > best.items.length) {
+            return current;
+          }
+          return best;
+        }, null);
+
+        metricTop.textContent = dominantGroup.label;
+        metricTopNote.textContent = `${dominantGroup.items.length} documento(s) en el grupo principal.`;
+
+        groupList.innerHTML = groupedResults
+          .map((group) => {
+            const averageGroupConfidence = group.items.reduce((sum, item) => sum + item.confidence, 0) / group.items.length;
+
+            return `
+              <section class="group">
+                <div class="group__top">
+                  <div>
+                    <p class="group__eyebrow">Tipo detectado</p>
+                    <h3 class="group__title">${escapeHtml(group.label)}</h3>
+                  </div>
+                  <div class="group__count">${group.items.length} archivo(s)</div>
+                </div>
+                <div class="group__meta">
+                  <span>Confianza media: ${averageGroupConfidence.toFixed(2)}%</span>
+                  <span>Cada documento se descarga por separado</span>
+                </div>
+                <ul class="group__list">
+                  ${group.items
+                    .map(
+                      (item, index) => `
+                        <li class="group__item">
+                          <div class="group__item-name">${escapeHtml(item.filename)}</div>
+                          <span class="group__item-confidence">${item.confidence.toFixed(2)}%</span>
+                          <div class="group__item-actions">
+                            <button class="group__item-action group__item-action--preview" type="button" data-preview-label="${escapeHtml(group.label)}" data-item-index="${index}">Vista previa</button>
+                            <button class="group__item-action group__item-action--download" type="button" data-download-label="${escapeHtml(group.label)}" data-item-index="${index}">Descargar</button>
+                          </div>
+                        </li>
+                      `
+                    )
+                    .join("")}
+                </ul>
+                <div class="group__footer">
+                  <button class="group__download group__download--all" type="button" data-download-group-label="${escapeHtml(group.label)}">Descargar todo este tipo</button>
+                  <div>Las descargas siguen siendo individuales, solo se lanzan una por una.</div>
+                </div>
+              </section>
+            `;
+          })
+          .join("");
+      }
+
+      async function downloadSingleFile(file, suggestedName) {
+        const formData = new FormData();
+        formData.append("documents", file);
+
+        const response = await fetch("/download", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || "No se pudo generar la descarga.");
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = suggestedName || file.name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      async function downloadGroupFiles(group) {
+        window.alert("Para descargar todo este tipo, habilita las descargas múltiples en el aviso del navegador, normalmente en la parte superior izquierda. Sin ese permiso, el navegador solo permitirá un archivo.");
+
+        for (const item of group.items) {
+          status.textContent = `Descargando ${item.filename}...`;
+          await downloadSingleFile(item.file, item.filename);
+          await new Promise((resolve) => setTimeout(resolve, 120));
+        }
+      }
+
+      documentInput.addEventListener("change", () => {
+        const incomingFiles = Array.from(documentInput.files || []);
+
+        if (!incomingFiles.length) {
+          return;
+        }
+
+        const mergedFiles = [...selectedFiles];
+        const addedNames = [];
+        const replacedNames = [];
+        let limitExceeded = false;
+
+        incomingFiles.forEach((file) => {
+          const fileName = file.name.toLowerCase();
+          const existingIndex = mergedFiles.findIndex((item) => item.name.toLowerCase() === fileName);
+
+          if (existingIndex >= 0) {
+            const shouldReplace = window.confirm(`El documento "${file.name}" ya está agregado. Si continúas, se reemplazará por la nueva versión.`);
+
+            if (!shouldReplace) {
+              return;
+            }
+
+            mergedFiles[existingIndex] = file;
+            replacedNames.push(file.name);
+            return;
+          }
+
+          if (mergedFiles.length < MAX_UPLOADS) {
+            mergedFiles.push(file);
+            addedNames.push(file.name);
+            return;
+          }
+
+          limitExceeded = true;
+        });
+
+        if (limitExceeded) {
+          window.alert(`Límite sobrecargado: solo puedes seleccionar hasta ${MAX_UPLOADS} documentos.`);
+        }
+
+        if (mergedFiles.length > MAX_UPLOADS) {
+          documentInput.value = "";
+          status.textContent = `Solo puedes seleccionar hasta ${MAX_UPLOADS} documentos.`;
+          return;
+        }
+
+        selectedFiles = mergedFiles;
+        renderQueue(selectedFiles);
+        resetResults();
+        const notes = [];
+        if (addedNames.length) {
+          notes.push(`${addedNames.length} agregado(s)`);
+        }
+        if (replacedNames.length) {
+          notes.push(`${replacedNames.length} reemplazado(s) por mismo nombre`);
+        }
+        status.textContent = notes.length
+          ? `${selectedFiles.length} documento(s) en la cola. ${notes.join(" y ")}.`
+          : `${selectedFiles.length} documento(s) en la cola.`;
+        documentInput.value = "";
+      });
+
+      clearBtn.addEventListener("click", () => {
+        documentInput.value = "";
+        selectedFiles = [];
+        renderQueue([]);
+        resetResults();
+        status.textContent = "Selección limpiada.";
+      });
+
+      previewModalClose.addEventListener("click", () => {
+        closePreviewModal();
+      });
+
+      previewModal.addEventListener("click", (event) => {
+        if (event.target === previewModal) {
+          closePreviewModal();
+        }
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && previewModal.classList.contains("is-open")) {
+          closePreviewModal();
+        }
+      });
+
+      queueList.addEventListener("click", (event) => {
+        const previewButton = event.target.closest("[data-preview-index]");
+        const removeButton = event.target.closest("[data-remove-index]");
+
+        if (previewButton) {
+          const index = Number(previewButton.dataset.previewIndex);
+          const file = selectedFiles[index];
+          if (file) {
+            openPreviewModal(file);
+          }
+          return;
+        }
+
+        if (removeButton) {
+          const index = Number(removeButton.dataset.removeIndex);
+          removeSelectedFile(index);
+        }
+      });
+
+      classifyBtn.addEventListener("click", async () => {
+        const files = Array.from(selectedFiles);
+
+        if (!files.length) {
+          status.textContent = "Primero agrega al menos un documento.";
+          return;
+        }
+
+        if (files.length > MAX_UPLOADS) {
+          status.textContent = `Solo puedes enviar hasta ${MAX_UPLOADS} documentos.`;
+          return;
+        }
+
+        status.textContent = "Procesando documentos...";
+        classifyBtn.disabled = true;
+
+        try {
+          const response = await fetch("/predict", {
+            method: "POST",
+            body: buildFormData(files),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || "No se pudo obtener la clasificación.");
+          }
+
+          renderGroupedResults(data.results || []);
+          status.textContent = "Clasificación lista. Usa los botones de cada documento para ver la vista previa o descargarlo.";
+        } catch (error) {
+          status.textContent = error.message;
+        } finally {
+          classifyBtn.disabled = false;
+        }
+      });
+
+      groupList.addEventListener("click", async (event) => {
+        const previewButton = event.target.closest("[data-preview-label]");
+        const downloadButton = event.target.closest("[data-download-label]");
+        const downloadGroupButton = event.target.closest("[data-download-group-label]");
+
+        if (!previewButton && !downloadButton && !downloadGroupButton) {
+          return;
+        }
+
+        const actionButton = previewButton || downloadButton || downloadGroupButton;
+        const label =
+          actionButton.dataset.previewLabel ||
+          actionButton.dataset.downloadLabel ||
+          actionButton.dataset.downloadGroupLabel;
+        const group = groupedResults.find((item) => item.label === label);
+        const itemIndex = Number(actionButton.dataset.itemIndex);
+        const item = previewButton || downloadButton ? group?.items?.[itemIndex] : null;
+
+        if (!group || (actionButton !== downloadGroupButton && !item)) {
+          status.textContent = "No se encontró el documento solicitado.";
+          return;
+        }
+
+        actionButton.disabled = true;
+
+        try {
+          if (downloadGroupButton) {
+            status.textContent = `Descargando todos los documentos de ${label}...`;
+            await downloadGroupFiles(group);
+            status.textContent = `Descarga completa para ${label}.`;
+          } else if (previewButton) {
+            status.textContent = `Abriendo vista previa de ${item.filename}...`;
+            await openPreviewModal(item.file);
+          } else {
+            status.textContent = `Descargando ${item.filename}...`;
+            await downloadSingleFile(item.file, item.filename);
+            status.textContent = `Descarga lista para ${item.filename}.`;
+          }
+        } catch (error) {
+          status.textContent = error.message;
+        } finally {
+          actionButton.disabled = false;
+        }
+      });
+
+      resetResults();
+      renderQueue(selectedFiles);
+    </script>
+  </body>
+</html>
