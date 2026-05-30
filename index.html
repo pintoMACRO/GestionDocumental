@@ -448,6 +448,23 @@
         hyphens: auto;
       }
 
+      .group__title-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .group__warning {
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(180, 43, 43, 0.12);
+        color: #9b1c1c;
+        font-size: 0.78rem;
+        font-weight: 800;
+        line-height: 1.2;
+      }
+
       .group__count {
         flex: none;
         padding: 7px 11px;
@@ -940,13 +957,17 @@
         groupList.innerHTML = groupedResults
           .map((group) => {
             const averageGroupConfidence = group.items.reduce((sum, item) => sum + item.confidence, 0) / group.items.length;
+            const warningMessage = group.items.find((item) => item.warning_message)?.warning_message;
 
             return `
               <section class="group">
                 <div class="group__top">
                   <div>
                     <p class="group__eyebrow">Tipo detectado</p>
-                    <h3 class="group__title">${escapeHtml(group.label)}</h3>
+                    <div class="group__title-row">
+                      <h3 class="group__title">${escapeHtml(group.label)}</h3>
+                      ${warningMessage ? `<span class="group__warning">${escapeHtml(warningMessage)}</span>` : ""}
+                    </div>
                   </div>
                   <div class="group__count">${group.items.length} archivo(s)</div>
                 </div>

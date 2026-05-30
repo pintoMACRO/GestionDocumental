@@ -92,6 +92,11 @@ def classify_image(model, image: Image.Image, classes, target_size: tuple[int, i
     predicted_index = int(np.argmax(predictions))
     confidence = float(np.max(predictions)) * 100
     predicted_label = resolve_class_name(classes, predicted_index)
+    warning_message = None
+
+    if confidence <= 65:
+        predicted_label = "Otros"
+        warning_message = "La confianza es baja. Tome bien la foto y vuelva a intentar para obtener una mejor clasificación."
 
     probabilities = []
     for index, probability in enumerate(predictions):
@@ -108,6 +113,7 @@ def classify_image(model, image: Image.Image, classes, target_size: tuple[int, i
         "confidence": confidence,
         "predicted_index": predicted_index,
         "probabilities": probabilities,
+        "warning_message": warning_message,
     }
 
 
