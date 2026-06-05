@@ -67,23 +67,24 @@ docker logs gestion-documental
 
 ### El modelo no se encuentra
 
-El Dockerfile verifica que `modelo/modelo_resnet50.keras` existe. Si falla:
+El Dockerfile verifica que `modelo/modelo_resnet50.keras` existe y que no sea un puntero LFS. Si falla:
 
 ```bash
 ls -lh modelo/
+head -n 1 modelo/modelo_resnet50.keras
 ```
 
 Si está vacío o falta:
 1. En local: `git add modelo/` y `git push`
-2. En la instancia: `git pull origin main`
-3. Rebuild: `docker build -t gestion-documental:latest .`
+2. En la instancia: vuelve a clonar con el script de deploy actualizado, o elimina el checkout viejo y ejecuta `git lfs fetch --include="modelo/modelo_resnet50.keras" --all && git lfs checkout modelo/modelo_resnet50.keras`
+3. Rebuild: `docker build --no-cache -t gestion-documental:latest .`
 
 ### Actualizaciones del código
 
 ```bash
 cd GestionDocumental
-git pull origin main
-docker build -t gestion-documental:latest .
+rm -rf GestionDocumental
+curl -sSL https://raw.githubusercontent.com/pintoMACRO/GestionDocumental/main/deploy-aws.sh | bash
 docker restart gestion-documental
 ```
 

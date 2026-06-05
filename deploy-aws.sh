@@ -13,8 +13,11 @@ echo "========================================="
 sudo apt update
 sudo apt upgrade -y
 
-# Instalar Docker y Git
+# Instalar Docker, Git y Git LFS
 sudo apt install -y docker.io git curl
+curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+sudo apt install -y git-lfs
+git lfs install
 
 # Habilitar Docker
 sudo systemctl enable docker
@@ -30,14 +33,18 @@ echo "========================================="
 echo "Clonando repositorio..."
 echo "========================================="
 
-# Clonar repo si no existe
-if [ ! -d "GestionDocumental" ]; then
-    git clone https://github.com/pintoMACRO/GestionDocumental.git
-    cd GestionDocumental
-else
-    cd GestionDocumental
-    git pull origin main
+# Clonar repo limpio para evitar checkouts viejos sin binario LFS
+if [ -d "GestionDocumental" ]; then
+    rm -rf GestionDocumental
 fi
+
+GIT_LFS_SKIP_SMUDGE=0 git clone https://github.com/pintoMACRO/GestionDocumental.git
+cd GestionDocumental
+
+# Asegurar que el modelo grande se descargue completo
+git lfs fetch --include="modelo/modelo_resnet50.keras" --all
+git lfs checkout modelo/modelo_resnet50.keras
+git lfs pull --include="modelo/modelo_resnet50.keras"
 
 echo "✓ Repositorio listo"
 echo ""
@@ -46,13 +53,19 @@ echo "========================================="
 echo "Construyendo imagen Docker..."
 echo "========================================="
 
-# Verificar que el modelo existe
+# Verificar que el modelo existe y no es un puntero de Git LFS
 if [ ! -f "modelo/modelo_resnet50.keras" ]; then
     echo "❌ ERROR: modelo/modelo_resnet50.keras no encontrado"
     exit 1
 fi
 
-echo "✓ Modelo encontrado"
+if head -n 1 modelo/modelo_resnet50.keras | grep -q "^version https://git-lfs.github.com/spec/v1$"; then
+    echo "❌ ERROR: modelo/modelo_resnet50.keras es un puntero de Git LFS, no el binario real"
+    exit 1
+fi
+
+MODEL_BYTES=$(stat -c "%s" modelo/modelo_resnet50.keras)
+echo "✓ Modelo encontrado (${MODEL_BYTES} bytes)"
 
 # Build
 docker build -t gestion-documental:latest .

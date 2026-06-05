@@ -28,6 +28,9 @@ COPY . .
 
 RUN test -f modelo/modelo_resnet50.keras || (echo "ERROR: modelo/modelo_resnet50.keras not found" && exit 1) && \
     test -f index.html || (echo "ERROR: index.html not found" && exit 1) && \
+    if head -n 1 modelo/modelo_resnet50.keras | grep -q "^version https://git-lfs.github.com/spec/v1$"; then \
+        echo "ERROR: modelo/modelo_resnet50.keras is still a Git LFS pointer" && exit 1; \
+    fi && \
     echo "✓ All required files present"
 
 EXPOSE 8000
