@@ -5,9 +5,6 @@ from functools import lru_cache
 from pathlib import Path
 import os
 import time
-import subprocess
-import sys
-import tempfile
 
 # Workarounds for occasional TensorFlow native crashes on some systems:
 # - disable oneDNN optimizations which can cause segfaults with certain CPU/lib combinations
@@ -19,7 +16,6 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 import numpy as np
 import tensorflow as tf
 from PIL import Image
-from rapidfuzz import fuzz
 from starlette.applications import Starlette
 from starlette.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from starlette.routing import Route
@@ -31,16 +27,7 @@ MODEL_PATH = MODEL_DIR / "modelo_resnet50.keras"
 CONFIG_PATH = MODEL_DIR / "config.json"
 INDEX_PATH = BASE_DIR / "index.html"
 MAX_UPLOADS = 20
-OCR_THRESHOLD = 72
 MODEL_THRESHOLD = 65
-
-PALABRAS_CLAVE = {
-    "CUESTIONARIO DE CAPACIDADES Y DIFICULTADES (SDQ-Cas) M 11-17": ["11-17", "11 17", "M 11"],
-    "CUESTIONARIO DE CAPACIDADES Y DIFICULTADES (SDQ-Cas) M 4-17": ["4-17", "4 17", "M 4"],
-    "CUESTIONARIO DE COMPORTAMIENTO INFANTIL PARA LA EDAD DE 4 A 16 AÑOS - CBCL": ["CBCL", "COMPORTAMIENTO INFANTIL"],
-    "CUESTIONARIO DE ESTILOS EDUCATIVOS PARENTALES - CEEP": ["CEEP", "ESTILOS EDUCATIVOS"],
-    "FORMATO EVALUACION RAPIDA DE ESENCIALES PARA LA VIDA": ["ESENCIALES PARA LA VIDA", "EVALUACION RAPIDA"],
-}
 
 
 def log_message(message: str) -> None:
@@ -85,36 +72,6 @@ def resolve_class_name(classes, index: int) -> str:
     if isinstance(classes, dict):
         return str(classes.get(str(index), classes.get(index, index)))
     return str(classes[index])
-
-
-@lru_cache(maxsize=1)
-def load_ocr_reader():
-    import easyocr  # type: ignore[import-not-found]
-
-    return easyocr.Reader(["es", "en"], gpu=False)
-
-
-def run_ocr(image: Image.Image) -> tuple[str, int, str | None]:
-    ocr_reader = load_ocr_reader()
-    rgb_image = image.convert("RGB")
-    image_array = np.array(rgb_image)
-    height = image_array.shape[0]
-    top_crop = image_array[: max(1, int(height * 0.20)), :, :]
-
-    results = ocr_reader.readtext(top_crop)
-    text = " ".join(result[1] for result in results).upper().strip()
-
-    best_class = None
-    best_score = 0
-
-    for class_name, keywords in PALABRAS_CLAVE.items():
-        for keyword in keywords:
-            score = fuzz.partial_ratio(keyword.upper(), text)
-            if score > best_score:
-                best_score = score
-                best_class = class_name
-
-    return text, best_score, best_class
 
 
 def render_document_preview(document_bytes: bytes, filename: str = "") -> Image.Image:
@@ -170,46 +127,6 @@ def classify_image(model, image: Image.Image, classes, target_size: tuple[int, i
     confidence = float(np.max(predictions)) * 100
     predicted_label = resolve_class_name(classes, predicted_index)
     warning_message = None
-    ocr_text = None
-    ocr_score = None
-    ocr_class = None
-    ocr_confirmation = False
-    ocr_method = None
-    temp_image_path = None
-
-    try:
-        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp_file:
-            temp_image_path = tmp_file.name
-            image.save(temp_image_path)
-
-        log_message(f"Ejecutando OCR de confirmacion con archivo temporal {temp_image_path}")
-        ocr_proc = subprocess.run(
-            [sys.executable, str(BASE_DIR / "ocr_worker.py"), temp_image_path],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-
-        if ocr_proc.returncode == 0 and ocr_proc.stdout.strip():
-            ocr_data = json.loads(ocr_proc.stdout)
-            ocr_text = ocr_data.get("text")
-            ocr_score = ocr_data.get("score")
-            ocr_class = ocr_data.get("class")
-
-            if ocr_class and ocr_score is not None and ocr_score >= OCR_THRESHOLD:
-                ocr_confirmation = ocr_class == predicted_label
-                ocr_method = f"OCR {'confirma' if ocr_confirmation else 'no confirma'} (score {ocr_score})"
-        else:
-            log_message(
-                f"OCR sin resultado util: rc={ocr_proc.returncode}, stderr={ocr_proc.stderr.strip() if ocr_proc.stderr else ''}"
-            )
-    except Exception as exc:
-        log_message(f"OCR de confirmacion no disponible: {exc}")
-    finally:
-        try:
-            Path(temp_image_path).unlink()
-        except Exception:
-            pass
 
     if confidence <= MODEL_THRESHOLD:
         predicted_label = "Otros"
@@ -233,11 +150,7 @@ def classify_image(model, image: Image.Image, classes, target_size: tuple[int, i
         "predicted_index": predicted_index,
         "probabilities": probabilities,
         "warning_message": warning_message,
-        "method": f"ResNet50 ({confidence:.2f}%)" if not ocr_method else f"ResNet50 ({confidence:.2f}%) + {ocr_method}",
-        "ocr_confirmation": ocr_confirmation,
-        "ocr_score": ocr_score,
-        "ocr_class": ocr_class,
-        "ocr_text": ocr_text or "(título no legible)",
+        "method": f"ResNet50 ({confidence:.2f}%)",
     }
 
 
