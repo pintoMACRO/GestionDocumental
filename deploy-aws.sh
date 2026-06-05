@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Script de deployment para AWS EC2
-# Uso: curl -sSL https://raw.githubusercontent.com/pintoMACRO/GestionDocumental/main/deploy-aws.sh | bash
+# Uso: curl -sSL https://raw.githubusercontent.com/pintoMACRO/GestionDocumental/main/deploy-aws.sh | sh
 
 set -e
 
@@ -24,9 +24,6 @@ sudo systemctl start docker
 sudo usermod -aG docker $USER
 
 echo "✓ Dependencias instaladas"
-echo ""
-echo "Nota: Debes hacer logout y login para que los cambios de grupo tomen efecto"
-echo "O ejecuta: newgrp docker"
 echo ""
 
 echo "========================================="
@@ -52,11 +49,10 @@ echo "========================================="
 # Verificar que el modelo existe
 if [ ! -f "modelo/modelo_resnet50.keras" ]; then
     echo "❌ ERROR: modelo/modelo_resnet50.keras no encontrado"
-    echo "Asegúrate de que el modelo está en la carpeta modelo/"
     exit 1
 fi
 
-echo "✓ Modelo encontrado ($(du -h modelo/modelo_resnet50.keras | cut -f1))"
+echo "✓ Modelo encontrado"
 
 # Build
 docker build -t gestion-documental:latest .
@@ -68,13 +64,13 @@ echo "========================================="
 echo "Iniciando contenedor..."
 echo "========================================="
 
-# Detener y remover contenedor anterior
-docker stop gestion-documental 2>/dev/null || true
-docker rm gestion-documental 2>/dev/null || true
+# Usar sudo para docker commands
+sudo docker stop gestion-documental 2>/dev/null || true
+sudo docker rm gestion-documental 2>/dev/null || true
 sleep 2
 
 # Iniciar contenedor
-docker run -d \
+sudo docker run -d \
     --restart unless-stopped \
     -p 8000:8000 \
     --name gestion-documental \
@@ -89,14 +85,14 @@ echo ""
 echo "Esperando que el servicio esté listo..."
 for i in {1..30}; do
     if curl -s http://localhost:8000/ > /dev/null 2>&1; then
-        echo "✓ Servicio listo en http://localhost:8000"
+        echo "✓ Servicio listo"
         break
     fi
     if [ $i -eq 30 ]; then
         echo "❌ Timeout esperando el servicio"
         echo ""
         echo "Logs del contenedor:"
-        docker logs gestion-documental
+        sudo docker logs gestion-documental
         exit 1
     fi
     echo "  Intento $i/30..."
@@ -108,11 +104,11 @@ echo "========================================="
 echo "¡Deployment completado!"
 echo "========================================="
 echo ""
-echo "URL: http://$(hostname -I | awk '{print $1}'):8000"
+IP=$(hostname -I | awk '{print $1}')
+echo "URL: http://$IP:8000"
 echo ""
 echo "Comandos útiles:"
-echo "  Ver logs:           docker logs -f gestion-documental"
-echo "  Reiniciar:          docker restart gestion-documental"
-echo "  Ver estado:         docker ps | grep gestion-documental"
-echo "  Actualizar código:  cd GestionDocumental && git pull && docker build -t gestion-documental:latest . && docker restart gestion-documental"
+echo "  Ver logs:           sudo docker logs -f gestion-documental"
+echo "  Reiniciar:          sudo docker restart gestion-documental"
+echo "  Ver estado:         sudo docker ps | grep gestion-documental"
 echo ""
