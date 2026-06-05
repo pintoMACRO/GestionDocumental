@@ -277,7 +277,7 @@ routes = [
 ]
 
 
-app = Starlette(debug=True, routes=routes)
+app = Starlette(debug=False, routes=routes)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
