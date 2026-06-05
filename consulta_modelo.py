@@ -19,7 +19,9 @@ CLASES = CONFIG["clases"]
 
 modelo = tf.keras.models.load_model(MODEL_PATH)
 
-IMG_SIZE = tuple(CONFIG.get("img_size", [160, 160]))
+# config.json stores [height, width]; Pillow expects (width, height)
+img_size = CONFIG.get("img_size", [160, 160])
+IMG_SIZE = (int(img_size[1]), int(img_size[0]))
 THRESHOLD = float(CONFIG.get("confidence_threshold", 0.65))
 
 print(f"Modelo cargado — Clases: {CLASES}")

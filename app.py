@@ -3,6 +3,15 @@ import json
 import mimetypes
 from functools import lru_cache
 from pathlib import Path
+import os
+import time
+
+# Workarounds for occasional TensorFlow native crashes on some systems:
+# - disable oneDNN optimizations which can cause segfaults with certain CPU/lib combinations
+# - limit OpenMP threads to reduce contention
+os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 import numpy as np
 import tensorflow as tf
@@ -31,6 +40,10 @@ PALABRAS_CLAVE = {
 }
 
 
+def log_message(message: str) -> None:
+    print(f"[predict] {message}", flush=True)
+
+
 @lru_cache(maxsize=1)
 def load_model_and_classes():
     model = tf.keras.models.load_model(MODEL_PATH)
@@ -40,10 +53,21 @@ def load_model_and_classes():
 
     classes = config["clases"]
 
+    # config['img_size'] viene como [alto, ancho] — Pillow espera (ancho, alto)
     img_size = config.get("img_size", [160, 160])
-    target_size = (int(img_size[0]), int(img_size[1]))
+    target_size = (int(img_size[1]), int(img_size[0]))
 
     return model, classes, target_size
+
+
+def load_config_only():
+    with open(CONFIG_PATH, "r", encoding="utf-8") as file:
+        config = json.load(file)
+
+    classes = config.get("clases", [])
+    img_size = config.get("img_size", [160, 160])
+    target_size = (int(img_size[1]), int(img_size[0]))
+    return classes, target_size
 
 
 def preprocess_image(image: Image.Image, target_size: tuple[int, int]) -> np.ndarray:
@@ -125,24 +149,30 @@ async def read_uploaded_document(uploaded_file):
 
 
 def classify_image(model, image: Image.Image, classes, target_size: tuple[int, int]):
-    input_data = preprocess_image(image, target_size)
-    predictions = model.predict(input_data, verbose=0)[0]
+    started_at = time.perf_counter()
+    try:
+        log_message(f"Ejecutando inferencia directa con modelo {MODEL_PATH}")
+        if model is None:
+            model, classes, target_size = load_model_and_classes()
+
+        image_array = preprocess_image(image, target_size)
+        predictions = model.predict(image_array, verbose=0)[0]
+        elapsed = time.perf_counter() - started_at
+        log_message(f"Inferencia completada en {elapsed:.2f}s")
+    except Exception as exc:
+        log_message(f"La inferencia directa falló: {exc}")
+        raise
 
     predicted_index = int(np.argmax(predictions))
     confidence = float(np.max(predictions)) * 100
     predicted_label = resolve_class_name(classes, predicted_index)
     warning_message = None
-    ocr_text, ocr_score, ocr_class = run_ocr(image)
-    ocr_confirmation = False
-    ocr_method = None
-
-    if ocr_class and ocr_score >= OCR_THRESHOLD:
-        ocr_confirmation = ocr_class == predicted_label
-        ocr_method = f"OCR {'confirma' if ocr_confirmation else 'no confirma'} (score {ocr_score})"
 
     if confidence <= MODEL_THRESHOLD:
         predicted_label = "Otros"
         warning_message = "La confianza es baja. Tome bien la foto y vuelva a intentar para obtener una mejor clasificación."
+
+    log_message(f"Resultado: {predicted_label} ({confidence:.2f}%)")
 
     probabilities = []
     for index, probability in enumerate(predictions):
@@ -160,11 +190,7 @@ def classify_image(model, image: Image.Image, classes, target_size: tuple[int, i
         "predicted_index": predicted_index,
         "probabilities": probabilities,
         "warning_message": warning_message,
-        "method": f"ResNet50 ({confidence:.2f}%)" if not ocr_method else f"ResNet50 ({confidence:.2f}%) + {ocr_method}",
-        "ocr_confirmation": ocr_confirmation,
-        "ocr_score": ocr_score,
-        "ocr_class": ocr_class,
-        "ocr_text": ocr_text or "(título no legible)",
+        "method": f"ResNet50 ({confidence:.2f}%)",
     }
 
 
@@ -195,6 +221,8 @@ async def predict(request):
     form = await request.form()
     uploaded_files = get_uploaded_files(form)
 
+    log_message(f"Solicitud /predict recibida con {len(uploaded_files)} archivo(s)")
+
     if not uploaded_files:
         return JSONResponse(
             {"error": "Debes enviar al menos un documento en el campo 'documents' o 'document'."},
@@ -204,7 +232,7 @@ async def predict(request):
     if len(uploaded_files) > MAX_UPLOADS:
         return JSONResponse({"error": f"Solo se permiten hasta {MAX_UPLOADS} documentos por solicitud."}, status_code=400)
 
-    model, classes, target_size = load_model_and_classes()
+    classes, target_size = load_config_only()
 
     results = []
     for uploaded_file in uploaded_files:
@@ -213,9 +241,12 @@ async def predict(request):
         except Exception as exc:
             return JSONResponse({"error": f"No se pudo leer el documento {uploaded_file.filename}: {exc}"}, status_code=400)
 
-        result = classify_image(model, image, classes, target_size)
+        log_message(f"Procesando archivo {filename}")
+        result = classify_image(None, image, classes, target_size)
         result["filename"] = filename
         results.append(result)
+
+    log_message(f"Lote completado con {len(results)} resultado(s)")
 
     return JSONResponse(
         {
