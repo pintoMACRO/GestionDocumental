@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Script de deployment para AWS EC2
 # Uso: curl -sSL https://raw.githubusercontent.com/pintoMACRO/GestionDocumental/main/deploy-aws.sh | bash
