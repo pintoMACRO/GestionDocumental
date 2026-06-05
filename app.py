@@ -5,6 +5,9 @@ from functools import lru_cache
 from pathlib import Path
 import os
 import time
+import subprocess
+import sys
+import tempfile
 
 # Workarounds for occasional TensorFlow native crashes on some systems:
 # - disable oneDNN optimizations which can cause segfaults with certain CPU/lib combinations
@@ -167,6 +170,46 @@ def classify_image(model, image: Image.Image, classes, target_size: tuple[int, i
     confidence = float(np.max(predictions)) * 100
     predicted_label = resolve_class_name(classes, predicted_index)
     warning_message = None
+    ocr_text = None
+    ocr_score = None
+    ocr_class = None
+    ocr_confirmation = False
+    ocr_method = None
+    temp_image_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp_file:
+            temp_image_path = tmp_file.name
+            image.save(temp_image_path)
+
+        log_message(f"Ejecutando OCR de confirmacion con archivo temporal {temp_image_path}")
+        ocr_proc = subprocess.run(
+            [sys.executable, str(BASE_DIR / "ocr_worker.py"), temp_image_path],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+        if ocr_proc.returncode == 0 and ocr_proc.stdout.strip():
+            ocr_data = json.loads(ocr_proc.stdout)
+            ocr_text = ocr_data.get("text")
+            ocr_score = ocr_data.get("score")
+            ocr_class = ocr_data.get("class")
+
+            if ocr_class and ocr_score is not None and ocr_score >= OCR_THRESHOLD:
+                ocr_confirmation = ocr_class == predicted_label
+                ocr_method = f"OCR {'confirma' if ocr_confirmation else 'no confirma'} (score {ocr_score})"
+        else:
+            log_message(
+                f"OCR sin resultado util: rc={ocr_proc.returncode}, stderr={ocr_proc.stderr.strip() if ocr_proc.stderr else ''}"
+            )
+    except Exception as exc:
+        log_message(f"OCR de confirmacion no disponible: {exc}")
+    finally:
+        try:
+            Path(temp_image_path).unlink()
+        except Exception:
+            pass
 
     if confidence <= MODEL_THRESHOLD:
         predicted_label = "Otros"
@@ -190,7 +233,11 @@ def classify_image(model, image: Image.Image, classes, target_size: tuple[int, i
         "predicted_index": predicted_index,
         "probabilities": probabilities,
         "warning_message": warning_message,
-        "method": f"ResNet50 ({confidence:.2f}%)",
+        "method": f"ResNet50 ({confidence:.2f}%)" if not ocr_method else f"ResNet50 ({confidence:.2f}%) + {ocr_method}",
+        "ocr_confirmation": ocr_confirmation,
+        "ocr_score": ocr_score,
+        "ocr_class": ocr_class,
+        "ocr_text": ocr_text or "(título no legible)",
     }
 
 
