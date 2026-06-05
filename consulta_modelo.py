@@ -7,9 +7,8 @@ from PIL import Image
 
 
 BASE_DIR = Path(__file__).resolve().parent
-MODEL_DIR = BASE_DIR / "modelo"
-MODEL_PATH = MODEL_DIR / "modelo_resnet50.keras"
-CONFIG_PATH = MODEL_DIR / "config.json"
+MODEL_PATH = BASE_DIR / "modelo_resnet50.keras"
+CONFIG_PATH = BASE_DIR / "config.json"
 
 
 with open(CONFIG_PATH, "r", encoding="utf-8") as file:

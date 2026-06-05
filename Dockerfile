@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN test -f modelo/modelo_resnet50.keras || (echo "ERROR: Modelo no encontrado" && exit 1)
+RUN test -f modelo_resnet50.keras || (echo "ERROR: Modelo no encontrado" && exit 1)
 
 EXPOSE 8000
 

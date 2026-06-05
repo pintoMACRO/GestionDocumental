@@ -25,9 +25,8 @@ import traceback
 
 
 BASE_DIR = Path(__file__).resolve().parent
-MODEL_DIR = BASE_DIR / "modelo"
-MODEL_PATH = MODEL_DIR / "modelo_resnet50.keras"
-CONFIG_PATH = MODEL_DIR / "config.json"
+MODEL_PATH = BASE_DIR / "modelo_resnet50.keras"
+CONFIG_PATH = BASE_DIR / "config.json"
 INDEX_PATH = BASE_DIR / "index.html"
 MAX_UPLOADS = 20
 MODEL_THRESHOLD = 65
