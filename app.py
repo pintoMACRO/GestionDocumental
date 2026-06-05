@@ -20,6 +20,8 @@ from starlette.applications import Starlette
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from starlette.routing import Route
+from starlette.requests import Request
+import traceback
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -282,3 +284,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def handle_exceptions(request: Request, exc: Exception):
+    # Log full traceback to stdout (visible in container logs / CloudWatch)
+    tb = traceback.format_exc()
+    log_message(f"Unhandled exception: {exc}")
+    log_message(tb)
+
+    # Return JSON error response so frontend never tries to parse HTML
+    return JSONResponse({"error": "Internal server error", "details": str(exc)}, status_code=500)
