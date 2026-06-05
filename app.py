@@ -17,6 +17,7 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 from starlette.applications import Starlette
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from starlette.routing import Route
 
@@ -275,3 +276,9 @@ routes = [
 
 
 app = Starlette(debug=True, routes=routes)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
