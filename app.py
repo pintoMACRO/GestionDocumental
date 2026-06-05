@@ -7,32 +7,41 @@ from pathlib import Path
 import numpy as np
 import tensorflow as tf
 from PIL import Image
+from rapidfuzz import fuzz
 from starlette.applications import Starlette
 from starlette.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from starlette.routing import Route
 
 
 BASE_DIR = Path(__file__).resolve().parent
-MODEL_PATH = BASE_DIR / "modelo_prueba_resnet50.keras"
-CLASSES_PATH = BASE_DIR / "clases_resnet50.json"
+MODEL_DIR = BASE_DIR / "modelo"
+MODEL_PATH = MODEL_DIR / "modelo_resnet50.keras"
+CONFIG_PATH = MODEL_DIR / "config.json"
 INDEX_PATH = BASE_DIR / "index.html"
 MAX_UPLOADS = 20
+OCR_THRESHOLD = 72
+MODEL_THRESHOLD = 65
+
+PALABRAS_CLAVE = {
+    "CUESTIONARIO DE CAPACIDADES Y DIFICULTADES (SDQ-Cas) M 11-17": ["11-17", "11 17", "M 11"],
+    "CUESTIONARIO DE CAPACIDADES Y DIFICULTADES (SDQ-Cas) M 4-17": ["4-17", "4 17", "M 4"],
+    "CUESTIONARIO DE COMPORTAMIENTO INFANTIL PARA LA EDAD DE 4 A 16 AÑOS - CBCL": ["CBCL", "COMPORTAMIENTO INFANTIL"],
+    "CUESTIONARIO DE ESTILOS EDUCATIVOS PARENTALES - CEEP": ["CEEP", "ESTILOS EDUCATIVOS"],
+    "FORMATO EVALUACION RAPIDA DE ESENCIALES PARA LA VIDA": ["ESENCIALES PARA LA VIDA", "EVALUACION RAPIDA"],
+}
 
 
 @lru_cache(maxsize=1)
 def load_model_and_classes():
     model = tf.keras.models.load_model(MODEL_PATH)
 
-    with open(CLASSES_PATH, "r", encoding="utf-8") as file:
-        classes = json.load(file)
+    with open(CONFIG_PATH, "r", encoding="utf-8") as file:
+        config = json.load(file)
 
-    target_size = (160, 160)
-    input_shape = model.input_shape
-    if isinstance(input_shape, (list, tuple)) and len(input_shape) >= 3:
-        height = input_shape[1]
-        width = input_shape[2]
-        if height and width:
-            target_size = (int(width), int(height))
+    classes = config["clases"]
+
+    img_size = config.get("img_size", [160, 160])
+    target_size = (int(img_size[0]), int(img_size[1]))
 
     return model, classes, target_size
 
@@ -49,6 +58,36 @@ def resolve_class_name(classes, index: int) -> str:
     if isinstance(classes, dict):
         return str(classes.get(str(index), classes.get(index, index)))
     return str(classes[index])
+
+
+@lru_cache(maxsize=1)
+def load_ocr_reader():
+    import easyocr  # type: ignore[import-not-found]
+
+    return easyocr.Reader(["es", "en"], gpu=False)
+
+
+def run_ocr(image: Image.Image) -> tuple[str, int, str | None]:
+    ocr_reader = load_ocr_reader()
+    rgb_image = image.convert("RGB")
+    image_array = np.array(rgb_image)
+    height = image_array.shape[0]
+    top_crop = image_array[: max(1, int(height * 0.20)), :, :]
+
+    results = ocr_reader.readtext(top_crop)
+    text = " ".join(result[1] for result in results).upper().strip()
+
+    best_class = None
+    best_score = 0
+
+    for class_name, keywords in PALABRAS_CLAVE.items():
+        for keyword in keywords:
+            score = fuzz.partial_ratio(keyword.upper(), text)
+            if score > best_score:
+                best_score = score
+                best_class = class_name
+
+    return text, best_score, best_class
 
 
 def render_document_preview(document_bytes: bytes, filename: str = "") -> Image.Image:
@@ -93,8 +132,15 @@ def classify_image(model, image: Image.Image, classes, target_size: tuple[int, i
     confidence = float(np.max(predictions)) * 100
     predicted_label = resolve_class_name(classes, predicted_index)
     warning_message = None
+    ocr_text, ocr_score, ocr_class = run_ocr(image)
+    ocr_confirmation = False
+    ocr_method = None
 
-    if confidence <= 65:
+    if ocr_class and ocr_score >= OCR_THRESHOLD:
+        ocr_confirmation = ocr_class == predicted_label
+        ocr_method = f"OCR {'confirma' if ocr_confirmation else 'no confirma'} (score {ocr_score})"
+
+    if confidence <= MODEL_THRESHOLD:
         predicted_label = "Otros"
         warning_message = "La confianza es baja. Tome bien la foto y vuelva a intentar para obtener una mejor clasificación."
 
@@ -114,6 +160,11 @@ def classify_image(model, image: Image.Image, classes, target_size: tuple[int, i
         "predicted_index": predicted_index,
         "probabilities": probabilities,
         "warning_message": warning_message,
+        "method": f"ResNet50 ({confidence:.2f}%)" if not ocr_method else f"ResNet50 ({confidence:.2f}%) + {ocr_method}",
+        "ocr_confirmation": ocr_confirmation,
+        "ocr_score": ocr_score,
+        "ocr_class": ocr_class,
+        "ocr_text": ocr_text or "(título no legible)",
     }
 
 
