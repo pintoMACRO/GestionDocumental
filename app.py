@@ -286,7 +286,6 @@ app.add_middleware(
 )
 
 
-@app.exception_handler(Exception)
 async def handle_exceptions(request: Request, exc: Exception):
     # Log full traceback to stdout (visible in container logs / CloudWatch)
     tb = traceback.format_exc()
@@ -295,3 +294,7 @@ async def handle_exceptions(request: Request, exc: Exception):
 
     # Return JSON error response so frontend never tries to parse HTML
     return JSONResponse({"error": "Internal server error", "details": str(exc)}, status_code=500)
+
+
+# Register exception handler for Starlette
+app.add_exception_handler(Exception, handle_exceptions)
